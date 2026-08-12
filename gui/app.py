@@ -6,13 +6,11 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTextEdit, QLineEdit, QPushButton, QListWidget, QListWidgetItem,
-    QLabel, QComboBox, QSlider, QDialog, QFormLayout, QFrame, QSplitter,
-    QScrollArea, QSizePolicy, QMessageBox
+    QLabel, QComboBox, QDialog, QFormLayout, QSplitter, QMessageBox
 )
-from PySide6.QtCore import Qt, QThread, Signal, QSize
-from PySide6.QtGui import QFont, QColor, QPalette, QIcon
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QFont
 
-# --- Config & Session Storage ---
 CONFIG_DIR = Path.home() / ".config" / "aichat-gui"
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_FILE = CONFIG_DIR / "config.json"
@@ -56,7 +54,18 @@ def save_sessions(sessions):
     with open(SESSIONS_FILE, "w", encoding="utf-8") as f:
         json.dump(sessions, f, indent=2, ensure_ascii=False)
 
-# --- Worker Thread for Real-time Streaming ---
+def fetch_ollama_models(base_url):
+    try:
+        url = base_url.rstrip("/") + "/api/tags"
+        resp = requests.get(url, timeout=3)
+        if resp.status_code == 200:
+            data = resp.json()
+            return [m["name"] for m in data.get("models", [])]
+    except Exception:
+        pass
+    return []
+
+# --- Streaming Worker ---
 class StreamWorker(QThread):
     token_received = Signal(str)
     finished_signal = Signal()
@@ -80,14 +89,23 @@ class StreamWorker(QThread):
 
             if provider == "ollama":
                 url = self.cfg.get("ollama_url", "http://localhost:11434").rstrip("/") + "/api/chat"
+                model_name = self.cfg.get("ollama_model", "llama3:latest")
                 payload = {
-                    "model": self.cfg.get("ollama_model", "llama3:latest"),
+                    "model": model_name,
                     "messages": req_messages,
                     "options": {"temperature": temp},
                     "stream": True
                 }
                 resp = requests.post(url, json=payload, stream=True, timeout=60)
-                if resp.status_code != 200:
+                if resp.status_code == 404:
+                    self.error_signal.emit(
+                        f"Ollama 未找到模型 '{model_name}' (404 Error)。\n\n"
+                        f"💡 請確認 Ollama 已啟動，並在命令列執行下列指令下載模型：\n"
+                        f"   ollama pull llama3\n"
+                        f"或於 ⚙️ Settings 選擇已安裝的模型。"
+                    )
+                    return
+                elif resp.status_code != 200:
                     self.error_signal.emit(f"Ollama API Error ({resp.status_code}): {resp.text}")
                     return
 
@@ -114,7 +132,14 @@ class StreamWorker(QThread):
                     "stream": True
                 }
                 resp = requests.post(url, headers=headers, json=payload, stream=True, timeout=60)
-                if resp.status_code != 200:
+                if resp.status_code == 401:
+                    self.error_signal.emit(
+                        "未提供有效的 API Key (401 Unauthorized)。\n\n"
+                        "💡 使用 OpenAI / 雲端 API 模式時，請點擊左下角 ⚙️ Settings，\n"
+                        "在 'OpenAI API Key' 欄位填入您的 API Key。"
+                    )
+                    return
+                elif resp.status_code != 200:
                     self.error_signal.emit(f"API Error ({resp.status_code}): {resp.text}")
                     return
 
@@ -136,52 +161,63 @@ class StreamWorker(QThread):
             self.finished_signal.emit()
 
         except Exception as e:
-            self.error_signal.emit(str(e))
+            self.error_signal.emit(f"連線失敗: {str(e)}\n\n請確認網路或本地 AI 服務 (Ollama) 是否正常啟動。")
 
 # --- Settings Dialog ---
 class SettingsDialog(QDialog):
     def __init__(self, cfg, parent=None):
         super().__init__(parent)
         self.cfg = cfg.copy()
-        self.setWindowTitle("⚙️ Backend Provider & Settings")
-        self.resize(500, 420)
+        self.setWindowTitle("⚙️ API Provider & Model Settings")
+        self.resize(520, 480)
 
         layout = QVBoxLayout(self)
-
         form = QFormLayout()
         
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["Ollama (Local)", "OpenAI / Custom API"])
+        self.provider_combo.addItems(["Ollama (Local AI)", "OpenAI / Custom Cloud API"])
         if self.cfg["provider"] == "openai":
             self.provider_combo.setCurrentIndex(1)
-        form.addRow("Provider:", self.provider_combo)
+        self.provider_combo.currentIndexChanged.connect(self.toggle_provider_fields)
+        form.addRow("<b>AI Provider:</b>", self.provider_combo)
 
+        # Ollama Fields
         self.ollama_url_input = QLineEdit(self.cfg["ollama_url"])
         form.addRow("Ollama URL:", self.ollama_url_input)
 
-        self.ollama_model_input = QLineEdit(self.cfg["ollama_model"])
-        form.addRow("Ollama Model:", self.ollama_model_input)
+        ollama_model_layout = QHBoxLayout()
+        self.ollama_model_combo = QComboBox()
+        self.btn_refresh = QPushButton("🔄 Refresh Local Models")
+        self.btn_refresh.clicked.connect(self.refresh_ollama_models)
+        ollama_model_layout.addWidget(self.ollama_model_combo, 1)
+        ollama_model_layout.addWidget(self.btn_refresh)
+        form.addRow("Ollama Model:", ollama_model_layout)
 
+        # OpenAI Fields
         self.openai_url_input = QLineEdit(self.cfg["openai_url"])
         form.addRow("OpenAI Base URL:", self.openai_url_input)
 
         self.openai_key_input = QLineEdit(self.cfg["openai_key"])
         self.openai_key_input.setEchoMode(QLineEdit.Password)
+        self.openai_key_input.setPlaceholderText("sk-proj-...")
         form.addRow("OpenAI API Key:", self.openai_key_input)
 
         self.openai_model_input = QLineEdit(self.cfg["openai_model"])
-        form.addRow("OpenAI Model:", self.openai_model_input)
+        form.addRow("OpenAI Model Name:", self.openai_model_input)
 
         self.sys_prompt_input = QTextEdit()
         self.sys_prompt_input.setPlainText(self.cfg["system_prompt"])
-        self.sys_prompt_input.setMaximumHeight(80)
+        self.sys_prompt_input.setMaximumHeight(70)
         form.addRow("System Prompt:", self.sys_prompt_input)
 
         layout.addLayout(form)
 
+        # Auto fetch models on open
+        self.refresh_ollama_models()
+
         btn_box = QHBoxLayout()
-        btn_save = QPushButton("Save Settings")
-        btn_save.setStyleSheet("background-color: #5F00FF; color: white; font-weight: bold; padding: 6px 12px; border-radius: 4px;")
+        btn_save = QPushButton("💾 Save & Apply")
+        btn_save.setStyleSheet("background-color: #5F00FF; color: white; font-weight: bold; padding: 8px 16px; border-radius: 4px;")
         btn_save.clicked.connect(self.save_and_close)
         
         btn_cancel = QPushButton("Cancel")
@@ -192,10 +228,31 @@ class SettingsDialog(QDialog):
         btn_box.addWidget(btn_save)
         layout.addLayout(btn_box)
 
+    def toggle_provider_fields(self, index):
+        is_openai = (index == 1)
+        self.openai_url_input.setEnabled(is_openai)
+        self.openai_key_input.setEnabled(is_openai)
+        self.openai_model_input.setEnabled(is_openai)
+        self.ollama_url_input.setEnabled(not is_openai)
+        self.ollama_model_combo.setEnabled(not is_openai)
+        self.btn_refresh.setEnabled(not is_openai)
+
+    def refresh_ollama_models(self):
+        url = self.ollama_url_input.text().strip()
+        models = fetch_ollama_models(url)
+        self.ollama_model_combo.clear()
+        if models:
+            self.ollama_model_combo.addItems(models)
+            if self.cfg["ollama_model"] in models:
+                self.ollama_model_combo.setCurrentText(self.cfg["ollama_model"])
+        else:
+            self.ollama_model_combo.addItem(f"{self.cfg['ollama_model']} (Not Pulled / Run: ollama pull)")
+
     def save_and_close(self):
         self.cfg["provider"] = "openai" if self.provider_combo.currentIndex() == 1 else "ollama"
         self.cfg["ollama_url"] = self.ollama_url_input.text().strip()
-        self.cfg["ollama_model"] = self.ollama_model_input.text().strip()
+        if self.ollama_model_combo.currentText():
+            self.cfg["ollama_model"] = self.ollama_model_combo.currentText().split(" ")[0]
         self.cfg["openai_url"] = self.openai_url_input.text().strip()
         self.cfg["openai_key"] = self.openai_key_input.text().strip()
         self.cfg["openai_model"] = self.openai_model_input.text().strip()
@@ -258,22 +315,19 @@ class MainWindow(QMainWindow):
         chat_layout = QVBoxLayout(chat_area)
         chat_layout.setContentsMargins(15, 10, 15, 10)
 
-        # Header Info
         self.header_label = QLabel()
         self.update_header()
         self.header_label.setStyleSheet("font-size: 14px; color: #88C0D0; padding-bottom: 5px;")
         chat_layout.addWidget(self.header_label)
 
-        # Message Scroll Area
         self.chat_display = QTextEdit()
         self.chat_display.setReadOnly(True)
         self.chat_display.setFont(QFont("Consolas", 10))
         chat_layout.addWidget(self.chat_display)
 
-        # Input Row
         input_box = QHBoxLayout()
         self.prompt_input = QTextEdit()
-        self.prompt_input.setPlaceholderText("Ask AI anything... (Ctrl+Enter to send)")
+        self.prompt_input.setPlaceholderText("Ask AI anything... (Click Send or press Send button)")
         self.prompt_input.setMaximumHeight(80)
         input_box.addWidget(self.prompt_input)
 
@@ -315,7 +369,7 @@ class MainWindow(QMainWindow):
             border-radius: 6px;
             color: #C0CAF5;
         }
-        QLineEdit {
+        QLineEdit, QComboBox {
             background-color: #1A1B26;
             border: 1px solid #292E42;
             padding: 6px;
@@ -387,6 +441,16 @@ class MainWindow(QMainWindow):
         if not prompt:
             return
 
+        # Pre-flight check
+        provider = self.cfg.get("provider", "ollama")
+        if provider == "openai" and not self.cfg.get("openai_key") and "openai.com" in self.cfg.get("openai_url", ""):
+            QMessageBox.warning(
+                self, "缺少 API Key",
+                "⚠️ 您切換到了 OpenAI / 雲端 API 模式，但尚未填入 API Key！\n\n"
+                "請點擊左下角 ⚙️ Settings 填入您的 OpenAI API Key，或切換回 Ollama (Local AI) 模式。"
+            )
+            return
+
         self.prompt_input.clear()
 
         sess = self.sessions[self.current_session_idx]
@@ -398,7 +462,6 @@ class MainWindow(QMainWindow):
 
         self.render_messages()
 
-        # Start Async Worker
         self.worker = StreamWorker(self.cfg, sess["messages"][:-1])
         self.worker.token_received.connect(self.on_token)
         self.worker.finished_signal.connect(self.on_stream_done)
@@ -415,7 +478,7 @@ class MainWindow(QMainWindow):
         save_sessions(self.sessions)
 
     def on_stream_error(self, err_msg):
-        QMessageBox.critical(self, "API Connection Error", f"Failed to connect or stream from AI provider:\n\n{err_msg}")
+        QMessageBox.warning(self, "API 連線提示", err_msg)
 
     def open_settings(self):
         dialog = SettingsDialog(self.cfg, self)
