@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚡ AI Chatbot - Web Remote UI</title>
+  <title>Gemini AI Chatbot</title>
   <!-- Google Fonts: Noto Sans TC (思源黑體) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
-  <!-- Marked.js for Markdown & Highlight.js for Syntax Highlighting -->
+  <!-- Marked.js & Highlight.js -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/tokyo-night-dark.min.css">
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
@@ -16,66 +16,162 @@
 </head>
 <body>
   <div class="app-container">
-    <!-- Sidebar -->
+    <!-- Gemini Left Sidebar -->
     <aside class="sidebar">
-      <div class="sidebar-header">
-        <div class="brand">
-          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+      <!-- Top Brand Row -->
+      <div class="sidebar-brand-row">
+        <div class="gemini-brand">
+          <!-- 4-point Star Gemini Sparkle Icon -->
+          <svg class="sparkle-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z" fill="url(#sparkle-grad)"/>
+            <defs>
+              <linearGradient id="sparkle-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#4285F4"/>
+                <stop offset="0.5" stop-color="#9B51E0"/>
+                <stop offset="1" stop-color="#E91E63"/>
+              </linearGradient>
+            </defs>
           </svg>
-          <span>AI Chatbot</span>
+          <span class="brand-name">Gemini</span>
         </div>
-        <button id="btn-new-chat" class="btn-new">
+        <button class="btn-sidebar-toggle" title="收合側邊欄">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Mode Switcher Tabs -->
+      <div class="mode-tabs">
+        <button class="tab-btn active">即時通訊</button>
+        <button class="tab-btn">Spark <span class="badge-beta">BETA</span></button>
+      </div>
+
+      <!-- Quick Nav Menu -->
+      <div class="nav-menu">
+        <button id="btn-new-chat" class="nav-item btn-new-chat">
           <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
           <span>新對話</span>
         </button>
+
+        <button class="nav-item">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <span>搜尋對話</span>
+        </button>
+
+        <button class="nav-item">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="23 7 16 12 23 17 23 7"></polygon>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+          </svg>
+          <span>影片</span>
+        </button>
       </div>
 
-      <div class="session-label">HISTORICAL SESSIONS</div>
-      <div id="session-list" class="session-list"></div>
+      <!-- Section: Notebooks -->
+      <div class="sidebar-section-header">
+        <span>筆記本</span>
+      </div>
+      <button class="nav-item btn-add-notebook">
+        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>新增筆記本</span>
+      </button>
 
-      <div class="sidebar-footer">
-        <button id="btn-open-settings" class="btn-settings">
+      <!-- Section: Recent Chats -->
+      <div class="sidebar-section-header">
+        <span>近期對話</span>
+      </div>
+      <div id="session-list" class="recent-chats-list"></div>
+
+      <!-- Footer User Profile -->
+      <div class="sidebar-user-footer">
+        <div class="user-profile-info">
+          <div class="avatar-circle">YY</div>
+          <div class="user-name-box">
+            <span class="user-name">YY C</span>
+            <span class="user-tier">Pro</span>
+          </div>
+        </div>
+        <button id="btn-open-settings" class="btn-settings-icon" title="設定與參數微調">
           <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
-          <span>設定與微調參數</span>
         </button>
       </div>
     </aside>
 
-    <!-- Main Chat Workspace -->
-    <main class="chat-workspace">
-      <header class="top-bar">
-        <div class="model-selector-bar">
-          <label for="quick-model-select">模型 (Model):</label>
-          <select id="quick-model-select" class="select-model"></select>
-          <button id="btn-refresh-models" class="btn-icon" title="重新整理本地模型">
-            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <polyline points="1 20 1 14 7 14"></polyline>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+    <!-- Main Canvas Area -->
+    <main class="main-canvas">
+      <!-- Radial Aura Glow Background -->
+      <div class="aura-glow"></div>
+
+      <!-- Top Right Edit Action -->
+      <div class="top-right-actions">
+        <button class="btn-top-icon" title="編輯對話">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Hero Welcome Greeting (Shown when chat is empty) -->
+      <div id="hero-welcome" class="hero-welcome">
+        <h1 class="greeting-text">YY ，趕快開始吧！</h1>
+      </div>
+
+      <!-- Chat Messages Workspace (Shown during active conversation) -->
+      <div id="chat-messages" class="chat-messages-container hidden"></div>
+
+      <!-- Floating Gemini Pill Input Capsule -->
+      <div class="input-pill-wrapper">
+        <div class="input-pill-capsule">
+          <button class="pill-btn-add" title="新增附件或上下文">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
           </button>
+
+          <input type="text" id="prompt-input" class="pill-input-text" placeholder="問問 Gemini..." autocomplete="off">
+
+          <div class="pill-right-actions">
+            <!-- Model Switcher Pill Dropdown -->
+            <div class="model-pill-selector">
+              <span class="status-dot">●</span>
+              <select id="quick-model-select" class="model-dropdown-select"></select>
+            </div>
+
+            <!-- Mic / Action Icon -->
+            <button class="pill-btn-action" title="語音或動作">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </button>
+
+            <!-- Send Action Button -->
+            <button id="btn-send" class="pill-btn-send" title="發送">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="header-status" id="header-status">Ollama Connected</div>
-      </header>
-
-      <div id="chat-messages" class="messages-container"></div>
-
-      <div class="input-container">
-        <textarea id="prompt-input" placeholder="輸入訊息... (Shift+Enter 換行，Enter 發送)" rows="2"></textarea>
-        <button id="btn-send" class="btn-send">
-          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-          <span>發送</span>
-        </button>
       </div>
     </main>
   </div>
@@ -84,15 +180,15 @@
   <div id="settings-modal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>⚙️ 設定與 AI 參數微調</h3>
-        <button id="btn-close-modal" class="btn-icon">&times;</button>
+        <h3>⚙️ Gemini 設定與 AI 參數微調</h3>
+        <button id="btn-close-modal" class="btn-icon-close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>AI Provider (後端供應商)</label>
+          <label>AI Provider (後端服務商)</label>
           <select id="setting-provider">
             <option value="ollama">Ollama (Local AI)</option>
-            <option value="openai">OpenAI / Custom Cloud API</option>
+            <option value="openai">OpenAI / Gemini / Custom API</option>
           </select>
         </div>
 
@@ -102,45 +198,41 @@
         </div>
 
         <div class="form-group">
-          <label>OpenAI Base URL</label>
-          <input type="text" id="setting-openai-url" value="https://api.openai.com/v1">
+          <label>OpenAI / Gemini Base URL</label>
+          <input type="text" id="setting-openai-url" value="https://generativelanguage.googleapis.com/v1beta/openai/">
         </div>
 
         <div class="form-group">
-          <label>OpenAI API Key</label>
-          <input type="password" id="setting-openai-key" placeholder="sk-...">
+          <label>API Key (Gemini 或 OpenAI Key)</label>
+          <input type="password" id="setting-openai-key" placeholder="AIzaSy... 或 sk-...">
         </div>
 
         <hr class="divider">
-        <h4>🎛️ AI 生成參數微調</h4>
+        <h4>🎛️ AI 產生參數微調</h4>
 
         <div class="form-group">
           <label>溫度 (Temperature): <span id="val-temp">0.7</span></label>
           <input type="range" id="setting-temp" min="0.0" max="2.0" step="0.1" value="0.7">
-          <small>控制創造力：越小越精準平實，越大越有創意。</small>
         </div>
 
         <div class="form-group">
-          <label>上下文視窗長度 (Context Length / Num Ctx)</label>
+          <label>上下文長度 (Num Ctx)</label>
           <select id="setting-num-ctx">
             <option value="2048">2048 Tokens</option>
-            <option value="4096" selected>4096 Tokens (預設)</option>
+            <option value="4096" selected>4096 Tokens</option>
             <option value="8192">8192 Tokens</option>
             <option value="16384">16384 Tokens</option>
-            <option value="32768">32768 Tokens</option>
           </select>
-          <small>決定 AI 一次能記住的歷史對話長度。</small>
         </div>
 
         <div class="form-group">
           <label>重複懲罰 (Repeat Penalty): <span id="val-repeat">1.1</span></label>
           <input type="range" id="setting-repeat" min="0.5" max="2.0" step="0.1" value="1.1">
-          <small>數值越高越能減少 AI 產生重複廢話。</small>
         </div>
 
         <div class="form-group">
-          <label>System Prompt (系統提示詞人設)</label>
-          <textarea id="setting-system-prompt" rows="3">You are a helpful, concise AI assistant.</textarea>
+          <label>System Prompt (系統人設)</label>
+          <textarea id="setting-system-prompt" rows="3">You are a helpful, intelligent AI assistant.</textarea>
         </div>
       </div>
       <div class="modal-footer">

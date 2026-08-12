@@ -3,9 +3,9 @@ document.addEventListener("DOMContentLoaded", () => {
     provider: "ollama",
     ollama_url: "http://localhost:11434",
     ollama_model: "llama3:latest",
-    openai_url: "https://api.openai.com/v1",
+    openai_url: "https://generativelanguage.googleapis.com/v1beta/openai/",
     openai_key: "",
-    openai_model: "gpt-4o-mini",
+    openai_model: "gemini-2.0-flash",
     temperature: 0.7,
     num_ctx: 4096,
     repeat_penalty: 1.1,
@@ -20,12 +20,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // DOM Elements
   const sessionListEl = document.getElementById("session-list");
   const messagesContainerEl = document.getElementById("chat-messages");
+  const heroWelcomeEl = document.getElementById("hero-welcome");
   const promptInputEl = document.getElementById("prompt-input");
   const btnSendEl = document.getElementById("btn-send");
   const btnNewChatEl = document.getElementById("btn-new-chat");
   const quickModelSelectEl = document.getElementById("quick-model-select");
-  const btnRefreshModelsEl = document.getElementById("btn-refresh-models");
-  const headerStatusEl = document.getElementById("header-status");
 
   // Modal DOM
   const modalEl = document.getElementById("settings-modal");
@@ -71,6 +70,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function fetchModels() {
+    if (config.provider === "openai") {
+      quickModelSelectEl.innerHTML = "";
+      const opt = document.createElement("option");
+      opt.value = config.openai_model || "gemini-2.0-flash";
+      opt.textContent = config.openai_model || "gemini-2.0-flash";
+      quickModelSelectEl.appendChild(opt);
+      return;
+    }
+
     fetch("/api/models?url=" + encodeURIComponent(config.ollama_url))
       .then(res => res.json())
       .then(models => {
@@ -83,18 +91,14 @@ document.addEventListener("DOMContentLoaded", () => {
             if (m === config.ollama_model) opt.selected = true;
             quickModelSelectEl.appendChild(opt);
           });
-          headerStatusEl.textContent = "Ollama Connected (" + models.length + " models)";
         } else {
           const opt = document.createElement("option");
           opt.value = config.ollama_model;
           opt.textContent = config.ollama_model + " (Not pulled)";
           quickModelSelectEl.appendChild(opt);
-          headerStatusEl.textContent = "Ollama Connected (No local models)";
         }
       })
-      .catch(() => {
-        headerStatusEl.textContent = "Ollama Disconnected";
-      });
+      .catch(() => {});
   }
 
   function renderSidebar() {
@@ -113,29 +117,36 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderMessages() {
-    messagesContainerEl.innerHTML = "";
     const sess = sessions[activeSessionIdx];
-    if (!sess) return;
+    if (!sess || sess.messages.length === 0) {
+      heroWelcomeEl.classList.remove("hidden");
+      messagesContainerEl.classList.add("hidden");
+      return;
+    }
+
+    heroWelcomeEl.classList.add("hidden");
+    messagesContainerEl.classList.remove("hidden");
+    messagesContainerEl.innerHTML = "";
 
     sess.messages.forEach(m => {
       const bubble = document.createElement("div");
       bubble.className = "message-bubble " + m.role;
 
       const avatar = document.createElement("div");
-      avatar.className = "avatar";
-      avatar.textContent = m.role === "user" ? "YOU" : "AI";
+      avatar.className = "message-avatar";
+      avatar.textContent = m.role === "user" ? "YY" : "✨";
 
-      const content = document.createElement("div");
-      content.className = "message-content";
+      const body = document.createElement("div");
+      body.className = "message-body";
 
       if (m.role === "assistant") {
-        content.innerHTML = marked.parse(m.content || "...");
+        body.innerHTML = marked.parse(m.content || "...");
       } else {
-        content.textContent = m.content;
+        body.textContent = m.content;
       }
 
       bubble.appendChild(avatar);
-      bubble.appendChild(content);
+      bubble.appendChild(body);
       messagesContainerEl.appendChild(bubble);
     });
 
@@ -158,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
     sess.messages.push({ role: "assistant", content: "" });
     renderMessages();
 
-    // SSE Request to /api/chat
+    // Fetch SSE Stream
     fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -225,8 +236,6 @@ document.addEventListener("DOMContentLoaded", () => {
     config.ollama_model = e.target.value;
     saveStorage();
   });
-
-  btnRefreshModelsEl.addEventListener("click", fetchModels);
 
   // Settings Modal Handlers
   btnOpenSettingsEl.addEventListener("click", () => {
