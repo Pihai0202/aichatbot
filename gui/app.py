@@ -139,6 +139,15 @@ class StreamWorker(QThread):
                         "在 'OpenAI API Key' 欄位填入您的 API Key。"
                     )
                     return
+                elif resp.status_code == 429:
+                    self.error_signal.emit(
+                        "OpenAI 帳戶額度已用盡或無餘額 (429 Insufficient Quota)。\n\n"
+                        "💡 解決建議：\n"
+                        "1. 免費方案：切換至 Ollama (Local AI) 模式 (先在命令列執行 `ollama pull llama3`)\n"
+                        "2. 免費雲端：使用 OpenRouter 免費 API (Base URL 設為 https://openrouter.ai/api/v1)\n"
+                        "3. 官方儲值：前往 OpenAI 平台儲值頁面新增點數。"
+                    )
+                    return
                 elif resp.status_code != 200:
                     self.error_signal.emit(f"API Error ({resp.status_code}): {resp.text}")
                     return
