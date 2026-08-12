@@ -80,7 +80,9 @@ func (c *AIClient) streamOllama(cfg Config, messages []Message, tokenChan chan<-
 		"model":    cfg.OllamaModel,
 		"messages": reqMsgs,
 		"options": map[string]interface{}{
-			"temperature": cfg.Temperature,
+			"temperature":    cfg.Temperature,
+			"num_ctx":        cfg.NumCtx,
+			"repeat_penalty": cfg.RepeatPenalty,
 		},
 		"stream": true,
 	}

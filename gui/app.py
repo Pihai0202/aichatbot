@@ -2,14 +2,17 @@ import sys
 import json
 import os
 import requests
+import markdown
 from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QLineEdit, QPushButton, QListWidget, QListWidgetItem,
-    QLabel, QComboBox, QDialog, QFormLayout, QSplitter, QMessageBox
+    QTextBrowser, QTextEdit, QLineEdit, QPushButton, QListWidget, QListWidgetItem,
+    QLabel, QComboBox, QSlider, QDialog, QFormLayout, QSplitter,
+    QDoubleSpinBox, QSpinBox, QMessageBox
 )
-from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QThread, Signal, QSize
+from PySide6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter
+from PySide6.QtSvg import QSvgRenderer
 
 CONFIG_DIR = Path.home() / ".config" / "aichat-gui"
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -24,7 +27,9 @@ DEFAULT_CONFIG = {
     "openai_key": "",
     "openai_model": "gpt-4o-mini",
     "system_prompt": "You are a helpful, concise AI assistant.",
-    "temperature": 0.7
+    "temperature": 0.7,
+    "num_ctx": 4096,
+    "repeat_penalty": 1.1
 }
 
 def load_config():
@@ -65,7 +70,24 @@ def fetch_ollama_models(base_url):
         pass
     return []
 
-# --- Streaming Worker ---
+# SVG Icon Helper
+SVG_ICONS = {
+    "send": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>',
+    "plus": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
+    "settings": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#D8DEE9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+    "refresh": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#00F0FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>'
+}
+
+def svg_to_icon(svg_str, size=24):
+    renderer = QSvgRenderer(svg_str.encode("utf-8"))
+    image = QImage(size, size, QImage.Format_ARGB32)
+    image.fill(Qt.transparent)
+    painter = QPainter(image)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(QPixmap.fromImage(image))
+
+# Stream Worker
 class StreamWorker(QThread):
     token_received = Signal(str)
     finished_signal = Signal()
@@ -81,6 +103,8 @@ class StreamWorker(QThread):
             provider = self.cfg.get("provider", "ollama")
             system_prompt = self.cfg.get("system_prompt", "")
             temp = float(self.cfg.get("temperature", 0.7))
+            num_ctx = int(self.cfg.get("num_ctx", 4096))
+            repeat_penalty = float(self.cfg.get("repeat_penalty", 1.1))
 
             req_messages = []
             if system_prompt:
@@ -93,16 +117,19 @@ class StreamWorker(QThread):
                 payload = {
                     "model": model_name,
                     "messages": req_messages,
-                    "options": {"temperature": temp},
+                    "options": {
+                        "temperature": temp,
+                        "num_ctx": num_ctx,
+                        "repeat_penalty": repeat_penalty
+                    },
                     "stream": True
                 }
                 resp = requests.post(url, json=payload, stream=True, timeout=60)
                 if resp.status_code == 404:
                     self.error_signal.emit(
                         f"Ollama 未找到模型 '{model_name}' (404 Error)。\n\n"
-                        f"💡 請確認 Ollama 已啟動，並在命令列執行下列指令下載模型：\n"
-                        f"   ollama pull llama3\n"
-                        f"或於 ⚙️ Settings 選擇已安裝的模型。"
+                        f"💡 請在命令列執行：ollama pull {model_name.split(':')[0]}\n"
+                        f"或於上方下拉選單切換其他已下載的模型。"
                     )
                     return
                 elif resp.status_code != 200:
@@ -133,20 +160,10 @@ class StreamWorker(QThread):
                 }
                 resp = requests.post(url, headers=headers, json=payload, stream=True, timeout=60)
                 if resp.status_code == 401:
-                    self.error_signal.emit(
-                        "未提供有效的 API Key (401 Unauthorized)。\n\n"
-                        "💡 使用 OpenAI / 雲端 API 模式時，請點擊左下角 ⚙️ Settings，\n"
-                        "在 'OpenAI API Key' 欄位填入您的 API Key。"
-                    )
+                    self.error_signal.emit("未提供有效的 API Key (401 Unauthorized)。請在 ⚙️ Settings 填入 Key。")
                     return
                 elif resp.status_code == 429:
-                    self.error_signal.emit(
-                        "OpenAI 帳戶額度已用盡或無餘額 (429 Insufficient Quota)。\n\n"
-                        "💡 解決建議：\n"
-                        "1. 免費方案：切換至 Ollama (Local AI) 模式 (先在命令列執行 `ollama pull llama3`)\n"
-                        "2. 免費雲端：使用 OpenRouter 免費 API (Base URL 設為 https://openrouter.ai/api/v1)\n"
-                        "3. 官方儲值：前往 OpenAI 平台儲值頁面新增點數。"
-                    )
+                    self.error_signal.emit("OpenAI 帳戶額度已用盡 (429 Insufficient Quota)。請更換模式或儲值。")
                     return
                 elif resp.status_code != 200:
                     self.error_signal.emit(f"API Error ({resp.status_code}): {resp.text}")
@@ -168,17 +185,16 @@ class StreamWorker(QThread):
                                 pass
 
             self.finished_signal.emit()
-
         except Exception as e:
-            self.error_signal.emit(f"連線失敗: {str(e)}\n\n請確認網路或本地 AI 服務 (Ollama) 是否正常啟動。")
+            self.error_signal.emit(f"連線失敗: {str(e)}")
 
-# --- Settings Dialog ---
+# Settings Dialog with Fine-tuning Controls
 class SettingsDialog(QDialog):
     def __init__(self, cfg, parent=None):
         super().__init__(parent)
         self.cfg = cfg.copy()
-        self.setWindowTitle("⚙️ API Provider & Model Settings")
-        self.resize(520, 480)
+        self.setWindowTitle("⚙️ API 設定與 AI 參數微調 (Settings & Fine-tuning)")
+        self.resize(560, 560)
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -187,20 +203,11 @@ class SettingsDialog(QDialog):
         self.provider_combo.addItems(["Ollama (Local AI)", "OpenAI / Custom Cloud API"])
         if self.cfg["provider"] == "openai":
             self.provider_combo.setCurrentIndex(1)
-        self.provider_combo.currentIndexChanged.connect(self.toggle_provider_fields)
         form.addRow("<b>AI Provider:</b>", self.provider_combo)
 
         # Ollama Fields
         self.ollama_url_input = QLineEdit(self.cfg["ollama_url"])
         form.addRow("Ollama URL:", self.ollama_url_input)
-
-        ollama_model_layout = QHBoxLayout()
-        self.ollama_model_combo = QComboBox()
-        self.btn_refresh = QPushButton("🔄 Refresh Local Models")
-        self.btn_refresh.clicked.connect(self.refresh_ollama_models)
-        ollama_model_layout.addWidget(self.ollama_model_combo, 1)
-        ollama_model_layout.addWidget(self.btn_refresh)
-        form.addRow("Ollama Model:", ollama_model_layout)
 
         # OpenAI Fields
         self.openai_url_input = QLineEdit(self.cfg["openai_url"])
@@ -214,22 +221,49 @@ class SettingsDialog(QDialog):
         self.openai_model_input = QLineEdit(self.cfg["openai_model"])
         form.addRow("OpenAI Model Name:", self.openai_model_input)
 
-        self.sys_prompt_input = QTextEdit()
-        self.sys_prompt_input.setPlainText(self.cfg["system_prompt"])
-        self.sys_prompt_input.setMaximumHeight(70)
-        form.addRow("System Prompt:", self.sys_prompt_input)
-
         layout.addLayout(form)
 
-        # Auto fetch models on open
-        self.refresh_ollama_models()
+        # Divider & Fine Tuning Parameters
+        lbl_tuning = QLabel("<b>🎛️ AI 產生參數微調 (Fine-Tuning Parameters)</b>")
+        lbl_tuning.setStyleSheet("color: #00F0FF; font-size: 15px; margin-top: 10px;")
+        layout.addWidget(lbl_tuning)
+
+        form_tuning = QFormLayout()
+
+        # Temperature
+        self.spin_temp = QDoubleSpinBox()
+        self.spin_temp.setRange(0.0, 2.0)
+        self.spin_temp.setSingleStep(0.1)
+        self.spin_temp.setValue(float(self.cfg.get("temperature", 0.7)))
+        form_tuning.addRow("溫度 (Temperature [0.0 - 2.0]):", self.spin_temp)
+
+        # Num Ctx
+        self.combo_num_ctx = QComboBox()
+        self.combo_num_ctx.addItems(["2048", "4096", "8192", "16384", "32768"])
+        self.combo_num_ctx.setCurrentText(str(self.cfg.get("num_ctx", 4096)))
+        form_tuning.addRow("上下文長度 (Num Ctx):", self.combo_num_ctx)
+
+        # Repeat Penalty
+        self.spin_repeat = QDoubleSpinBox()
+        self.spin_repeat.setRange(0.5, 2.0)
+        self.spin_repeat.setSingleStep(0.1)
+        self.spin_repeat.setValue(float(self.cfg.get("repeat_penalty", 1.1)))
+        form_tuning.addRow("重複懲罰 (Repeat Penalty [0.5 - 2.0]):", self.spin_repeat)
+
+        # System Prompt
+        self.sys_prompt_input = QTextEdit()
+        self.sys_prompt_input.setPlainText(self.cfg["system_prompt"])
+        self.sys_prompt_input.setMaximumHeight(80)
+        form_tuning.addRow("System Prompt (人設):", self.sys_prompt_input)
+
+        layout.addLayout(form_tuning)
 
         btn_box = QHBoxLayout()
-        btn_save = QPushButton("💾 Save & Apply")
-        btn_save.setStyleSheet("background-color: #5F00FF; color: white; font-weight: bold; padding: 8px 16px; border-radius: 4px;")
+        btn_save = QPushButton("💾 儲存並套用")
+        btn_save.setStyleSheet("background-color: #8B5CF6; color: white; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
         btn_save.clicked.connect(self.save_and_close)
         
-        btn_cancel = QPushButton("Cancel")
+        btn_cancel = QPushButton("取消")
         btn_cancel.clicked.connect(self.reject)
         
         btn_box.addStretch()
@@ -237,44 +271,25 @@ class SettingsDialog(QDialog):
         btn_box.addWidget(btn_save)
         layout.addLayout(btn_box)
 
-    def toggle_provider_fields(self, index):
-        is_openai = (index == 1)
-        self.openai_url_input.setEnabled(is_openai)
-        self.openai_key_input.setEnabled(is_openai)
-        self.openai_model_input.setEnabled(is_openai)
-        self.ollama_url_input.setEnabled(not is_openai)
-        self.ollama_model_combo.setEnabled(not is_openai)
-        self.btn_refresh.setEnabled(not is_openai)
-
-    def refresh_ollama_models(self):
-        url = self.ollama_url_input.text().strip()
-        models = fetch_ollama_models(url)
-        self.ollama_model_combo.clear()
-        if models:
-            self.ollama_model_combo.addItems(models)
-            if self.cfg["ollama_model"] in models:
-                self.ollama_model_combo.setCurrentText(self.cfg["ollama_model"])
-        else:
-            self.ollama_model_combo.addItem(f"{self.cfg['ollama_model']} (Not Pulled / Run: ollama pull)")
-
     def save_and_close(self):
         self.cfg["provider"] = "openai" if self.provider_combo.currentIndex() == 1 else "ollama"
         self.cfg["ollama_url"] = self.ollama_url_input.text().strip()
-        if self.ollama_model_combo.currentText():
-            self.cfg["ollama_model"] = self.ollama_model_combo.currentText().split(" ")[0]
         self.cfg["openai_url"] = self.openai_url_input.text().strip()
         self.cfg["openai_key"] = self.openai_key_input.text().strip()
         self.cfg["openai_model"] = self.openai_model_input.text().strip()
+        self.cfg["temperature"] = self.spin_temp.value()
+        self.cfg["num_ctx"] = int(self.combo_num_ctx.currentText())
+        self.cfg["repeat_penalty"] = self.spin_repeat.value()
         self.cfg["system_prompt"] = self.sys_prompt_input.toPlainText().strip()
         save_config(self.cfg)
         self.accept()
 
-# --- Main Window ---
+# Main Window
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("⚡ AI Chat Desktop (Ultra Lightweight)")
-        self.resize(1000, 700)
+        self.setWindowTitle("⚡ AI Chatbot Desktop (思源黑體 & SVG Icon 優化版)")
+        self.resize(1060, 740)
 
         self.cfg = load_config()
         self.sessions = load_sessions()
@@ -282,8 +297,9 @@ class MainWindow(QMainWindow):
         self.worker = None
 
         self.init_ui()
-        self.apply_dark_theme()
+        self.apply_theme_and_font()
         self.load_current_session()
+        self.refresh_quick_models()
 
     def init_ui(self):
         central = QWidget()
@@ -294,104 +310,163 @@ class MainWindow(QMainWindow):
 
         splitter = QSplitter(Qt.Horizontal)
 
-        # --- Sidebar ---
+        # Sidebar
         sidebar = QWidget()
-        sidebar.setMinimumWidth(220)
-        sidebar.setMaximumWidth(280)
+        sidebar.setMinimumWidth(240)
+        sidebar.setMaximumWidth(300)
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(10, 10, 10, 10)
+        sidebar_layout.setContentsMargins(12, 12, 12, 12)
 
-        btn_new_chat = QPushButton("+ New Session")
-        btn_new_chat.setStyleSheet("background-color: #00F0FF; color: #000; font-weight: bold; padding: 8px; border-radius: 6px;")
+        btn_new_chat = QPushButton(" 新對話")
+        btn_new_chat.setIcon(svg_to_icon(SVG_ICONS["plus"], 18))
+        btn_new_chat.setStyleSheet("background: linear-gradient(135deg, #00F0FF, #00B8D9); color: #000; font-weight: bold; padding: 10px; border-radius: 8px; font-size: 15px;")
         btn_new_chat.clicked.connect(self.create_new_session)
         sidebar_layout.addWidget(btn_new_chat)
 
-        sidebar_layout.addWidget(QLabel("<b>CONVERSATIONS</b>"))
+        sidebar_layout.addWidget(QLabel("<b>對話歷史紀錄 (SESSIONS)</b>"))
 
         self.session_list = QListWidget()
         self.session_list.itemClicked.connect(self.on_session_clicked)
         sidebar_layout.addWidget(self.session_list)
 
-        btn_settings = QPushButton("⚙️ Settings & Models")
-        btn_settings.setStyleSheet("background-color: #2E3440; color: #D8DEE9; padding: 6px; border-radius: 4px;")
+        btn_settings = QPushButton(" 設定與參數微調")
+        btn_settings.setIcon(svg_to_icon(SVG_ICONS["settings"], 18))
+        btn_settings.setStyleSheet("background-color: #26293B; color: #E2E8F0; padding: 8px; border-radius: 6px; font-size: 14px;")
         btn_settings.clicked.connect(self.open_settings)
         sidebar_layout.addWidget(btn_settings)
 
         splitter.addWidget(sidebar)
 
-        # --- Main Chat Area ---
+        # Workspace
         chat_area = QWidget()
         chat_layout = QVBoxLayout(chat_area)
-        chat_layout.setContentsMargins(15, 10, 15, 10)
+        chat_layout.setContentsMargins(16, 12, 16, 12)
 
-        self.header_label = QLabel()
-        self.update_header()
-        self.header_label.setStyleSheet("font-size: 14px; color: #88C0D0; padding-bottom: 5px;")
-        chat_layout.addWidget(self.header_label)
+        # Top Header Model Switcher Bar
+        top_bar = QHBoxLayout()
+        lbl_model = QLabel("<b>模型選擇 (Model):</b>")
+        lbl_model.setStyleSheet("font-size: 15px; color: #00F0FF;")
+        top_bar.addWidget(lbl_model)
 
-        self.chat_display = QTextEdit()
-        self.chat_display.setReadOnly(True)
-        self.chat_display.setFont(QFont("Consolas", 10))
+        self.combo_top_models = QComboBox()
+        self.combo_top_models.setMinimumWidth(220)
+        self.combo_top_models.currentIndexChanged.connect(self.on_top_model_changed)
+        top_bar.addWidget(self.combo_top_models)
+
+        btn_refresh_top = QPushButton()
+        btn_refresh_top.setIcon(svg_to_icon(SVG_ICONS["refresh"], 18))
+        btn_refresh_top.setToolTip("重新整理本地模型")
+        btn_refresh_top.clicked.connect(self.refresh_quick_models)
+        top_bar.addWidget(btn_refresh_top)
+
+        top_bar.addStretch()
+
+        self.header_status = QLabel("Ollama API Mode")
+        self.header_status.setStyleSheet("color: #94A3B8; font-size: 14px;")
+        top_bar.addWidget(self.header_status)
+
+        chat_layout.addLayout(top_bar)
+
+        # Chat Display using QTextBrowser for rich Markdown HTML
+        self.chat_display = QTextBrowser()
+        self.chat_display.setOpenExternalLinks(True)
         chat_layout.addWidget(self.chat_display)
 
+        # Input box row
         input_box = QHBoxLayout()
         self.prompt_input = QTextEdit()
-        self.prompt_input.setPlaceholderText("Ask AI anything... (Click Send or press Send button)")
-        self.prompt_input.setMaximumHeight(80)
+        self.prompt_input.setPlaceholderText("輸入訊息... (點擊發送或按 Send 按鈕)")
+        self.prompt_input.setMaximumHeight(85)
         input_box.addWidget(self.prompt_input)
 
-        btn_send = QPushButton("Send 🚀")
-        btn_send.setStyleSheet("background-color: #5F00FF; color: white; font-weight: bold; min-width: 80px; min-height: 50px; border-radius: 6px;")
+        btn_send = QPushButton(" 發送")
+        btn_send.setIcon(svg_to_icon(SVG_ICONS["send"], 20))
+        btn_send.setStyleSheet("background: linear-gradient(135deg, #8B5CF6, #6D28D9); color: white; font-weight: bold; min-width: 95px; min-height: 55px; border-radius: 8px; font-size: 15px;")
         btn_send.clicked.connect(self.send_message)
         input_box.addWidget(btn_send)
 
         chat_layout.addLayout(input_box)
 
         splitter.addWidget(chat_area)
-        splitter.setSizes([240, 760])
-
+        splitter.setSizes([260, 800])
         main_layout.addWidget(splitter)
 
-    def apply_dark_theme(self):
+    def apply_theme_and_font(self):
+        # Set Source Han Sans / Noto Sans TC font
+        font = QFont()
+        font.setFamilies(["Source Han Sans TC", "Noto Sans TC", "Microsoft JhengHei", "sans-serif"])
+        font.setPointSize(11) # Standard comfortable 14-16px equivalent
+        QApplication.setFont(font)
+
         qss = """
         QMainWindow, QWidget {
-            background-color: #1E1E2E;
-            color: #C0CAF5;
+            background-color: #12131C;
+            color: #E2E8F0;
+            font-family: 'Source Han Sans TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+            font-size: 15px;
         }
         QListWidget {
-            background-color: #16161E;
-            border: 1px solid #292E42;
-            border-radius: 6px;
+            background-color: #1A1C29;
+            border: 1px solid #2E334D;
+            border-radius: 8px;
         }
         QListWidget::item {
-            padding: 8px;
-            color: #A9B1D6;
+            padding: 10px;
+            color: #94A3B8;
+            font-size: 14px;
         }
         QListWidget::item:selected {
-            background-color: #33374C;
+            background-color: #222538;
             color: #00F0FF;
             font-weight: bold;
         }
-        QTextEdit {
-            background-color: #1A1B26;
-            border: 1px solid #292E42;
-            border-radius: 6px;
-            color: #C0CAF5;
+        QTextBrowser {
+            background-color: #1A1C29;
+            border: 1px solid #2E334D;
+            border-radius: 8px;
+            color: #E2E8F0;
+            padding: 12px;
+            font-size: 15px;
         }
-        QLineEdit, QComboBox {
-            background-color: #1A1B26;
-            border: 1px solid #292E42;
-            padding: 6px;
-            border-radius: 4px;
-            color: #C0CAF5;
+        QTextEdit {
+            background-color: #181926;
+            border: 1px solid #2E334D;
+            border-radius: 8px;
+            color: #E2E8F0;
+            font-size: 15px;
+            padding: 8px;
+        }
+        QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {
+            background-color: #181926;
+            border: 1px solid #2E334D;
+            padding: 7px;
+            border-radius: 6px;
+            color: #E2E8F0;
+            font-size: 14px;
         }
         """
         self.setStyleSheet(qss)
 
-    def update_header(self):
+    def refresh_quick_models(self):
+        models = fetch_ollama_models(self.cfg.get("ollama_url", "http://localhost:11434"))
+        self.combo_top_models.blockSignals(True)
+        self.combo_top_models.clear()
+        if models:
+            self.combo_top_models.addItems(models)
+            if self.cfg["ollama_model"] in models:
+                self.combo_top_models.setCurrentText(self.cfg["ollama_model"])
+        else:
+            self.combo_top_models.addItem(self.cfg.get("ollama_model", "llama3:latest"))
+        self.combo_top_models.blockSignals(False)
+
         provider = self.cfg.get("provider", "ollama").upper()
-        model = self.cfg.get("ollama_model" if provider == "OLLAMA" else "openai_model", "")
-        self.header_label.setText(f"<b>Backend:</b> {provider} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Model:</b> {model}")
+        self.header_status.setText(f"Backend: {provider}")
+
+    def on_top_model_changed(self, idx):
+        model = self.combo_top_models.currentText()
+        if model:
+            self.cfg["ollama_model"] = model
+            save_config(self.cfg)
 
     def load_current_session(self):
         self.session_list.clear()
@@ -407,31 +482,31 @@ class MainWindow(QMainWindow):
             return
 
         sess = self.sessions[self.current_session_idx]
-        html = ""
+        html_output = "<html><head><style>"
+        html_output += """
+        body { font-family: 'Source Han Sans TC', 'Noto Sans TC', sans-serif; font-size: 15px; color: #E2E8F0; line-height: 1.6; }
+        .user-box { background-color: #1E293B; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; color: #00F0FF; }
+        .ai-box { background-color: #222538; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; color: #E2E8F0; border-left: 4px solid #8B5CF6; }
+        pre { background-color: #0F172A; padding: 10px; border-radius: 6px; font-family: Consolas, monospace; font-size: 14px; overflow-x: auto; }
+        code { background-color: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: Consolas, monospace; }
+        h1, h2, h3 { color: #00F0FF; margin-top: 12px; margin-bottom: 6px; }
+        """
+        html_output += "</style></head><body>"
+
         for m in sess.get("messages", []):
             role = m.get("role", "")
-            content = m.get("content", "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+            raw_content = m.get("content", "")
 
             if role == "user":
-                html += f"""
-                <div style='margin-bottom: 12px;'>
-                    <b style='color: #00F0FF;'>👤 YOU:</b><br>
-                    <div style='background-color: #24283B; padding: 10px; border-radius: 8px; margin-top: 4px; color: #E0E6ED;'>
-                        {content}
-                    </div>
-                </div>
-                """
+                clean_content = raw_content.replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+                html_output += f"<div class='user-box'><b>👤 YOU:</b><br>{clean_content}</div>"
             elif role == "assistant":
-                html += f"""
-                <div style='margin-bottom: 12px;'>
-                    <b style='color: #A000FF;'>🤖 ASSISTANT:</b><br>
-                    <div style='background-color: #1F2335; padding: 10px; border-radius: 8px; margin-top: 4px; color: #C0CAF5;'>
-                        {content}
-                    </div>
-                </div>
-                """
+                # Render markdown to HTML
+                md_html = markdown.markdown(raw_content, extensions=['fenced_code', 'tables', 'nl2br'])
+                html_output += f"<div class='ai-box'><b>🤖 ASSISTANT:</b><br>{md_html}</div>"
 
-        self.chat_display.setHtml(html)
+        html_output += "</body></html>"
+        self.chat_display.setHtml(html_output)
         self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())
 
     def on_session_clicked(self, item):
@@ -450,18 +525,7 @@ class MainWindow(QMainWindow):
         if not prompt:
             return
 
-        # Pre-flight check
-        provider = self.cfg.get("provider", "ollama")
-        if provider == "openai" and not self.cfg.get("openai_key") and "openai.com" in self.cfg.get("openai_url", ""):
-            QMessageBox.warning(
-                self, "缺少 API Key",
-                "⚠️ 您切換到了 OpenAI / 雲端 API 模式，但尚未填入 API Key！\n\n"
-                "請點擊左下角 ⚙️ Settings 填入您的 OpenAI API Key，或切換回 Ollama (Local AI) 模式。"
-            )
-            return
-
         self.prompt_input.clear()
-
         sess = self.sessions[self.current_session_idx]
         if not sess["messages"]:
             sess["title"] = prompt[:20] + ("..." if len(prompt) > 20 else "")
@@ -493,7 +557,7 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self.cfg, self)
         if dialog.exec():
             self.cfg = load_config()
-            self.update_header()
+            self.refresh_quick_models()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -1,43 +1,44 @@
-# ⚡ AI Chatbot - 超輕量級 AI 聊天用戶端 (TUI & Desktop GUI)
+# ⚡ AI Chatbot - 超輕量級 AI 聊天用戶端 (TUI, Desktop GUI & Web Remote)
 
-> 一款**極致低系統資源佔用、瞬間啟動、反應極速**的 AI 聊天介面工具組。
-> 提供 **Go 終端機版 (TUI)** 與 **PySide6 原生桌面圖形版 (GUI)** 雙介面，支援 **Ollama 本地 AI 模型** 與 **雲端 OpenAI 相容 API**。
-
----
-
-## 🌟 核心特點 (Key Features)
-
-- **⚡ 極致輕量與低資源佔用**：
-  - **TUI (Go + Bubbletea)**：記憶體佔用僅 **~10 - 15 MB RAM**，編譯為單一 10MB 獨立執行檔，無外部依賴。
-  - **Desktop GUI (PySide6)**：記憶體佔用僅 **~30 - 50 MB RAM**，遠低於傳統 Electron / Webview 應用 (300MB+)。
-- **🤖 雙核心 API 相容 (Local & Cloud)**：
-  - **本地 AI (Local AI)**：原生支援 [Ollama](https://ollama.com/) (`http://localhost:11434`)、LM Studio (`http://localhost:1234`)，保護個人數據隱私，完全免費。
-  - **雲端 AI (Cloud APIs)**：支援 OpenAI、OpenRouter、DeepSeek、Groq、Gemini 等任何 OpenAI-compatible REST API。
-- **💬 打字機流式傳輸 (Real-time Streaming)**：
-  - 支援 SSE / HTTP Chunk 流式輸出，邊生成邊即時顯示打字效果，反應零延遲。
-- **📁 對話歷史與持久化 (Session Management)**：
-  - 自動建立多對話分頁、歷史紀錄存取與自動儲存，離線也可瀏覽對話。
+> 一款**極致低系統資源佔用、瞬間啟動、反應極速**的 AI 聊天介面工具套件。
+> 提供 **Go 終端機版 (TUI)**、**PySide6 原生桌面圖形版 (GUI)** 以及 **Web 遠端連線版 (Web UI)** 三重介面！
 
 ---
 
-## 📊 雙版本介面對比 (TUI vs Desktop GUI)
+## 🌟 全新升級功能 (New Features)
 
-| 特性 / 介面 | ⚡ TUI 終端機介面 | 🖥️ Desktop GUI 桌面介面 |
-| :--- | :--- | :--- |
-| **主要技術** | Go 1.24 + Bubbletea + Lipgloss | Python 3.14 + PySide6 (Qt6) |
-| **記憶體佔用 (RAM)** | **~10 - 15 MB** | **~30 - 50 MB** |
-| **啟動速度** | 毫秒級 (Instant) | 瞬間點開即用 |
-| **操作方式** | 全鍵盤快捷鍵極速流動 | 滑鼠點擊 + 鍵盤操作 |
-| **適用場景** | 開發者、Hacker 風格、SSH / 低配機器 | 一般日常使用、習慣視窗桌面操作者 |
-| **一鍵啟動腳本** | `run_tui.bat` | `run_gui.bat` |
+1. **🎨 視覺美學與字體全面優化**：
+   - **思源黑體 (Source Han Sans TC / Noto Sans TC)**：介面與對話文字全局套用思源黑體，預設字體放大至標準舒適的 14~16px。
+   - **全向量 SVG Icon**：視窗圖示全面替換為高品質向量 SVG Icon (傳送、設定、刷新、新對話)。
+2. **📝 Markdown 高級渲染與語法高亮**：
+   - AI 回答自動進行完整 Markdown 渲染（標題 `#`, 粗體 `**`, 列表, 表格, 程式碼塊 ```` ```python ```` 語法高亮）。
+3. **🎛️ AI 參數微調 (Fine-Tuning Controls)**：
+   - 支援微調 **溫度 (Temperature: 0.0 ~ 2.0)**、**上下文長度 (Num Ctx: 2048 ~ 32768 Tokens)** 與 **重複懲罰 (Repeat Penalty: 0.5 ~ 2.0)**。
+4. **⚡ 頂部列快捷模型切換器**：
+   - 主介面頂部提供模型下拉選單，無需進入設定選單即可一鍵切換本地 Ollama 模型。
+5. **🌐 Web 遠端連線服務 (手機/平板/跨裝置)**：
+   - 內建一鍵 Web API 伺服器，自動抓取區域網路 IP 地址，支援同 Wi-Fi 網域下的手機與平板輕鬆存取與對話！
+
+---
+
+## 📊 三大介面對比 (TUI vs Desktop GUI vs Web Remote)
+
+| 特性 / 介面 | ⚡ TUI 終端機介面 | 🖥️ Desktop GUI 桌面介面 | 🌐 Web 遠端網頁介面 |
+| :--- | :--- | :--- | :--- |
+| **主要技術** | Go 1.24 + Bubbletea | PySide6 (Qt6) + SVG + Markdown | Python Server + HTML5/CSS3/JS |
+| **記憶體佔用 (RAM)** | **~10 - 15 MB** | **~30 - 50 MB** | **~20 MB** (伺服器端) |
+| **字體與美學** | 霓虹 Terminal 色彩 | **思源黑體 + SVG Icon** | 思源黑體 + Glassmorphism |
+| **Markdown 渲染** | Lipgloss 高亮 | 完整 HTML Markdown 渲染 | Marked.js + Highlight.js |
+| **跨裝置連線** | ❌ (本地終端機) | ❌ (本地視窗) | **✅ 支援手機/平板/其他電腦** |
+| **一鍵啟動腳本** | `run_tui.bat` | `run_gui.bat` | `run_web.bat` |
 
 ---
 
 ## 🚀 快速開始 (Quick Start)
 
 ### 1. 使用一鍵批次檔啟動 (Windows)
-雙擊專案目錄下的 `.bat` 檔即可直接運行：
 - **桌面版 (GUI)**：雙擊開啟 [`run_gui.bat`](file:///c:/AI/run_gui.bat)
+- **Web 遠端連線版 (Web UI)**：雙擊開啟 [`run_web.bat`](file:///c:/AI/run_web.bat) (自動開啟 `http://localhost:8000`)
 - **終端機版 (TUI)**：雙擊開啟 [`run_tui.bat`](file:///c:/AI/run_tui.bat)
 
 ### 2. 使用命令列啟動
@@ -46,75 +47,36 @@
 # 啟動 Desktop GUI 桌面版
 python c:\AI\gui\app.py
 
+# 啟動 Web 遠端伺服器 (提供手機/平板連線)
+python c:\AI\web\server.py
+
 # 啟動 TUI 終端機版
 c:\AI\tui\aichat-tui.exe
 ```
 
 ---
 
-## 📖 詳細使用指南 (Usage Guide)
+## 📱 手機與平板遠端連線教學
 
-### 🖥️ 一、 Desktop GUI 桌面圖形版使用手冊
-
-#### 1. 對話操作
-- **發送訊息**：在下方文字框輸入您的問題後，點擊 **`Send 🚀`** 按鈕或按下 `Ctrl + Enter` 發送。
-- **建立新對話**：點擊左上角的 **`+ New Session`** 按鈕即可開啟空白對話。
-- **切換歷史對話**：點擊左側對話列表中的任何歷史項目，即可隨時查看與續寫過去的對話。
-
-#### 2. API 設定與模型切換 (Settings)
-點擊左下角 **`⚙️ Settings & Models`** 進入設定面板：
-- **使用本地 AI (Ollama)**：
-  1. **Provider** 選擇 `Ollama (Local)`。
-  2. **Ollama URL** 保持預設 `http://localhost:11434`。
-  3. **Ollama Model** 輸入您本地已下載的模型名稱（例如 `llama3:latest` 或 `qwen2:latest`）。
-- **使用雲端 API (OpenAI / OpenRouter / DeepSeek)**：
-  1. **Provider** 選擇 `OpenAI / Custom API`。
-  2. **OpenAI Base URL** 輸入 API 端點（例如 OpenRouter 輸入 `https://openrouter.ai/api/v1`）。
-  3. **OpenAI API Key** 填入您的授權密鑰。
-  4. **OpenAI Model** 輸入模型代號（如 `gpt-4o-mini` 或 `deepseek-chat`）。
-  5. **System Prompt** 設定系統人設（如：*「你是一個專業的程式設計助手」*）。
-
----
-
-### ⚡ 二、 TUI 終端機版使用手冊
-
-TUI 版本完全針對鍵盤流設計，操作說明如下：
-
-#### 1. 鍵盤快捷鍵 (Keybindings)
-
-| 快捷鍵 | 功能說明 |
-| :--- | :--- |
-| **`Tab`** | 在 **對話歷史選單 (Sessions)** ↔ **對話內容 (Viewport)** ↔ **文字輸入框 (Input)** 之間切換焦點 |
-| **`Ctrl + N`** | 快速建立新的對話 Session |
-| **`Ctrl + S`** | 開啟 **Settings & Model Selector** 選單彈窗 |
-| **`Enter`** | (焦點在輸入框時) 發送對話訊息 |
-| **`Shift + Enter`** | (焦點在輸入框時) 文字換行 |
-| **`Up / Down`** | (焦點在側邊欄時) 切換歷史對話項目 |
-| **`Ctrl + Q` / `Ctrl + C`** | 離開程式 |
-
-#### 2. 設定選單 (Ctrl + S)
-在 TUI 介面中按下 `Ctrl + S` 會跳出設定彈窗：
-- 按 **`1`** 鍵：切換為 **Ollama 本地 API** 模式。
-- 按 **`2`** 鍵：切換為 **OpenAI 雲端 API** 模式。
-- 按 **`Up / Down (方向鍵)`**：滾動選擇自動偵測到的 Ollama 本地模型清單。
-- 按 **`Esc`**：關閉彈窗並返回對話。
-
----
-
-## 🦙 本地模型 (Ollama) 配置教學
-
-若您希望在無網路環境下完全免費使用 AI，推薦使用 **Ollama**：
-
-1. **安裝 Ollama**：至 [Ollama 官網](https://ollama.com/) 下載並安裝。
-2. **下載 AI 模型**：打開您的 PowerShell / Terminal，執行：
-   ```bash
-   # 下載 Meta 輕量模型
-   ollama run llama3
-
-   # 或下載 阿里 Qwen2 中文模型
-   ollama run qwen2
+1. 雙擊執行 `run_web.bat` 啟動 Web 伺服器。
+2. 命令列視窗會顯示您的區域網路 IP，例如：
    ```
-3. **開始使用**：啟動本軟體即可自動連接連線對話！
+   ============================================================
+    [Web Server] AI Chatbot Web Remote Server Started!
+    Local Access:    http://localhost:8000
+    Remote Wi-Fi IP: http://192.168.1.100:8000
+   ============================================================
+   ```
+3. 讓您的手機或平板連接同一個 Wi-Fi，打開手機瀏覽器輸入 `http://192.168.1.100:8000` 即可在手機上使用您電腦上的本地 Ollama 模型對話！
+
+---
+
+## 🎛️ AI 參數微調說明 (Fine-Tuning)
+
+點擊 **`⚙️ 設定與參數微調`** 面板：
+- **溫度 (Temperature)**：`0.0 ~ 2.0`（預設 0.7）。數值越低輸出越確定，越高越有創意。
+- **上下文長度 (Num Ctx)**：`2048 ~ 32768 Tokens`（預設 4096）。控制 AI 能記住的歷史對話長度。
+- **重複懲罰 (Repeat Penalty)**：`0.5 ~ 2.0`（預設 1.1）。防止 AI 生成重複循環的語句。
 
 ---
 
@@ -122,35 +84,18 @@ TUI 版本完全針對鍵盤流設計，操作說明如下：
 
 ```
 c:\AI\
-├── tui/                    # Go Bubbletea TUI 專案
-│   ├── main.go             # TUI 介面佈局與鍵盤事件處理
-│   ├── client.go           # HTTP SSE 流式 API 引擎 (Ollama & OpenAI)
-│   ├── store.go            # 本地 JSON 配置檔與對話歷史持久化
-│   ├── types.go            # 核心資料結構型別
-│   ├── go.mod              # Go 模組設定
-│   └── aichat-tui.exe      # 編譯完成之超輕量獨立執行檔 (10.3MB)
 ├── gui/                    # PySide6 桌面 GUI 專案
-│   └── app.py              # Qt6 桌面介面主程式與多執行緒流式引擎
+│   └── app.py              # 思源黑體、SVG Icon、Markdown 渲染桌面介面
+├── web/                    # Web 遠端 API 伺服器與網頁端
+│   ├── server.py           # 輕量 Web 伺服器 (支援跨裝置 IP 存取)
+│   └── static/             # SPA 單頁網頁 (index.html, style.css, app.js)
+├── tui/                    # Go Bubbletea TUI 專案
+│   ├── main.go / client.go # TUI 核心邏輯與流式 API 引擎
+│   └── aichat-tui.exe      # 獨立編譯之 10.3MB 執行檔
+├── run_gui.bat             # 一鍵啟動桌面 GUI 版
+├── run_web.bat             # 一鍵啟動 Web 遠端網頁版
 ├── run_tui.bat             # 一鍵啟動 TUI 終端機版
-├── run_gui.bat             # 一鍵啟動 Desktop GUI 桌面版
-├── .gitignore              # Git 忽略檔案設定
-└── README.md               # 專案詳細使用手冊
-```
-
----
-
-## 🛠️ 開發與編譯 (Build Guide)
-
-### 重新編譯 TUI 執行檔 (Go)
-```powershell
-cd c:\AI\tui
-C:\go\bin\go.exe build -o aichat-tui.exe .
-```
-
-### 執行 GUI 桌面版 (Python)
-```powershell
-python -m pip install PySide6 requests
-python c:\AI\gui\app.py
+└── README.md               # 專案詳細手冊
 ```
 
 ---

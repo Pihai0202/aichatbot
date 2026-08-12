@@ -2,13 +2,11 @@ package main
 
 import "time"
 
-// Message represents a single message in a conversation
 type Message struct {
-	Role    string `json:"role"`    // "system", "user", "assistant"
+	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// Session represents a chat conversation history
 type Session struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
@@ -17,7 +15,6 @@ type Session struct {
 	Messages  []Message `json:"messages"`
 }
 
-// ProviderType represents the AI backend provider
 type ProviderType string
 
 const (
@@ -25,7 +22,6 @@ const (
 	ProviderOpenAI ProviderType = "openai"
 )
 
-// Config holds user configuration and settings
 type Config struct {
 	ActiveProvider ProviderType `json:"active_provider"`
 	OllamaBaseURL  string       `json:"ollama_base_url"`
@@ -35,6 +31,8 @@ type Config struct {
 	OpenAIModel    string       `json:"openai_model"`
 	SystemPrompt   string       `json:"system_prompt"`
 	Temperature    float64      `json:"temperature"`
+	NumCtx         int          `json:"num_ctx"`
+	RepeatPenalty  float64      `json:"repeat_penalty"`
 }
 
 func DefaultConfig() Config {
@@ -47,10 +45,11 @@ func DefaultConfig() Config {
 		OpenAIModel:    "gpt-4o-mini",
 		SystemPrompt:   "You are a helpful, concise, and intelligent AI assistant.",
 		Temperature:    0.7,
+		NumCtx:         4096,
+		RepeatPenalty:  1.1,
 	}
 }
 
-// OllamaTagsResponse represents Ollama /api/tags response
 type OllamaTagsResponse struct {
 	Models []struct {
 		Name string `json:"name"`
