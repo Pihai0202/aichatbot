@@ -1,0 +1,27 @@
+# Build directories
+build/
+qt_libs/
+dist/
+node_modules/
+__pycache__/
+
+# Binaries and libraries
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.ilk
+*.idb
+
+# Qt deployed files
+generic/
+iconengines/
+imageformats/
+networkinformation/
+platforms/
+styles/
+tls/
+translations/
+opengl32sw.dll
+D3Dcompiler_47.dll

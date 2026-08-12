@@ -1,0 +1,29 @@
+{
+  "name": "zero-ai-desk",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Ultra-lightweight multi-model AI Desktop (Qt 6 & Electron) & TUI application",
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "gui": "electron electron/main.js",
+    "qt": "python qt_app.py",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node server/index.js",
+    "tui": "node tui/index.js",
+    "start": "electron electron/main.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "highlight.js": "^11.9.0",
+    "katex": "^0.16.10",
+    "marked": "^12.0.2"
+  },
+  "devDependencies": {
+    "electron": "^34.3.0",
+    "vite": "^5.2.11"
+  }
+}
